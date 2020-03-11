@@ -16,60 +16,164 @@ class App extends Component {
   async loadWeb3() {
     if (window.ethereum) {
       window.web3 = new Web3(window.ethereum)
-      await window.ethereum.enable()
+      this.setState({ metaEth: true })
+      // await window.ethereum.enable()
     }
     else if (window.web3) {
       window.web3 = new Web3(window.web3.currentProvider)
+      this.setState({ metaWeb3: true })
     }
-    else {
-      window.alert('Non-Ethereum browser detected. You should consider trying MetaMask!')
-    }
+    
   }
 
   async loadBlockchainData() {
-    const web3 = window.web3
-    // Load account
-    const accounts = await web3.eth.getAccounts()
-    this.setState({ account: accounts[0] })
-    // Network ID
-    const networkId = await web3.eth.net.getId()
-    const networkData = SocialNetwork.networks[networkId]
-    if(networkData) {
-      const socialNetwork = web3.eth.Contract(SocialNetwork.abi, networkData.address)
-      this.setState({ socialNetwork })
-      const postCount = await socialNetwork.methods.postCount().call()
-      this.setState({ postCount })
-      // Load Posts
-      for (var i = 1; i <= postCount; i++) {
-        const post = await socialNetwork.methods.posts(i).call()
+    if(window.web3)
+        {
+          const web3 = window.web3
+          // Load account
+          const accounts = await web3.eth.getAccounts()
+          this.setState({ account: accounts[0] })
+          // Network ID
+          const networkId = await web3.eth.net.getId()
+          const networkData = SocialNetwork.networks[networkId]
+          if(networkData) {
+            const socialNetwork = web3.eth.Contract(SocialNetwork.abi, networkData.address)
+            this.setState({ socialNetwork })
+            const postCount = await socialNetwork.methods.postCount().call()
+            this.setState({ postCount })
+            // Load Posts
+            for (var i = 1; i <= postCount; i++) {
+              const post = await socialNetwork.methods.posts(i).call()
+              this.setState({
+                posts: [...this.state.posts, post]
+              })
+            }
+            // Sort posts. Show highest tipped posts first
+            this.setState({
+              posts: this.state.posts.sort((a,b) => b.tipAmount - a.tipAmount )
+            })
+            this.setState({ loading: false})
+          } else {
+            window.alert('SocialNetwork contract not deployed to detected network.')
+          }
+        }
+
+    else{
+      require('dotenv').config()
+
+      // Default Account
+      this.setState({ account: "Sample Address: 0x323n...." })
+
+      
+      //Fallback to Infura, Metamask not available
+      const web3 = new Web3(
+        // Replace YOUR-PROJECT-ID with a Project ID from your Infura Dashboard
+        new Web3.providers.WebsocketProvider(`wss://rinkeby.infura.io/ws/v3/${process.env.REACT_APP_INFURA_API_KEY}`)
+      );
+
+      window.web3 = web3
+
+      
+
+      // Network ID
+      const networkId = await web3.eth.net.getId()
+      const networkData = SocialNetwork.networks[networkId]
+
+      if(networkData) {
+        //Load Contract
+        const socialNetwork = web3.eth.Contract(SocialNetwork.abi, networkData.address)
+        this.setState({ socialNetwork })
+        const postCount = await socialNetwork.methods.postCount().call()
+        this.setState({ postCount })
+        // Load Posts
+        for (var i = 1; i <= postCount; i++) {
+          const post = await socialNetwork.methods.posts(i).call()
+          this.setState({
+            posts: [...this.state.posts, post]
+          })
+        }
+        // Sort posts. Show highest tipped posts first
         this.setState({
-          posts: [...this.state.posts, post]
+          posts: this.state.posts.sort((a,b) => b.tipAmount - a.tipAmount )
         })
+        this.setState({ loading: false})
       }
-      // Sort posts. Show highest tipped posts first
-      this.setState({
-        posts: this.state.posts.sort((a,b) => b.tipAmount - a.tipAmount )
-      })
-      this.setState({ loading: false})
-    } else {
-      window.alert('SocialNetwork contract not deployed to detected network.')
+      else {
+        window.alert('SocialNetwork contract not deployed to detected network.')
+      }
+
     }
   }
 
-  createPost(content) {
-    this.setState({ loading: true })
-    this.state.socialNetwork.methods.createPost(content).send({ from: this.state.account })
-    .once('receipt', (receipt) => {
-      this.setState({ loading: false })
-    })
+  async createPost(content) {
+
+    if(this.state.metaEth) {
+      //Connect Metamask
+      await window.ethereum.enable()
+
+      const web3 = window.web3
+
+      const accounts = await web3.eth.getAccounts()
+      this.setState({ account: accounts[0] })
+
+      //Load post Data
+      this.setState({ loading: true })
+      this.state.socialNetwork.methods.createPost(content).send({ from: this.state.account })
+      .once('receipt', (receipt) => {
+        this.setState({ loading: false })
+      })
+    } else if(this.state.metaWeb3){
+
+      const web3 = window.web3
+
+      const accounts = await web3.eth.getAccounts()
+      this.setState({ account: accounts[0] })
+
+      this.setState({ loading: true })
+      this.state.socialNetwork.methods.createPost(content).send({ from: this.state.account })
+      .once('receipt', (receipt) => {
+        this.setState({ loading: false })
+      })
+    } else {
+      window.alert('Consider trying MetaMask!')
+    }
+
+    
   }
 
-  tipPost(id, tipAmount) {
-    this.setState({ loading: true })
-    this.state.socialNetwork.methods.tipPost(id).send({ from: this.state.account, value: tipAmount })
-    .once('receipt', (receipt) => {
-      this.setState({ loading: false })
-    })
+  async tipPost(id, tipAmount) {
+
+
+    if(this.state.metaEth) {
+      //Connect Metamask
+      await window.ethereum.enable()
+
+      const web3 = window.web3
+
+      const accounts = await web3.eth.getAccounts()
+      this.setState({ account: accounts[0] })
+
+      //Load post Data
+      this.setState({ loading: true })
+      this.state.socialNetwork.methods.tipPost(id).send({ from: this.state.account, value: tipAmount })
+      .once('receipt', (receipt) => {
+        this.setState({ loading: false })
+      })
+    } else if(this.state.metaWeb3){
+
+      const web3 = window.web3
+
+      const accounts = await web3.eth.getAccounts()
+      this.setState({ account: accounts[0] })
+
+      this.setState({ loading: true })
+      this.state.socialNetwork.methods.tipPost(id).send({ from: this.state.account, value: tipAmount })
+      .once('receipt', (receipt) => {
+        this.setState({ loading: false })
+      })
+    } else {
+      window.alert('Consider trying MetaMask!')
+    }
   }
 
   constructor(props) {
@@ -79,7 +183,9 @@ class App extends Component {
       socialNetwork: null,
       postCount: 0,
       posts: [],
-      loading: true
+      loading: true,
+      metaEth: false,
+      metaWeb3: false
     }
 
     this.createPost = this.createPost.bind(this)
